@@ -1,0 +1,8 @@
+[DEFAULT]
+token = 1337:1234567890abcdefgh
+
+[REDIS]
+#db = 0
+host = localhost
+port = 6379
+#socket_path = /pfad/zu/deiner/.redis/sock
