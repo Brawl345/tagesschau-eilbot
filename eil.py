@@ -91,13 +91,16 @@ def run_cron(bot, job):
     if not last_eil or breakingnews[0]['date'] != last_eil.decode('utf-8'):
       print(time.strftime("%d.%m.%Y, %H:%M:%S") + ' Uhr: Neue Eilmeldung')
       title = '<b>' + breakingnews[0]['headline'] + '</b>'
-      news = breakingnews[0]['shorttext'].rstrip()
+      if not breakingnews[0]['shorttext']:
+        news = ''
+      else:
+        news = breakingnews[0]['shorttext'].rstrip() + '\n'
       details_url = breakingnews[0]['details']
       post_url = details_url.replace('/api/', '/')
       post_url = post_url.replace('.json', '.html')
       posted_at = dateutil.parser.parse(breakingnews[0]['date'])
       posted_at = posted_at.strftime('%d.%m.%Y um %H:%M:%S Uhr')
-      eilmeldung = title + '\n<i>' + posted_at + '</i>\n' + news + '\n<a href="' + post_url + '">Eilmeldung aufrufen</a>'
+      eilmeldung = title + '\n<i>' + posted_at + '</i>\n' + news + '<a href="' + post_url + '">Eilmeldung aufrufen</a>'
       r.set(lhash, breakingnews[0]['date'])
       for _, receiver in enumerate(list(r.smembers(hash))):
         chat_id = receiver.decode('utf-8')
