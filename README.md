@@ -7,5 +7,5 @@ Dieser Bot sendet neue Eilmeldungen der [Tagesschau](http://www.tagesschau.de/).
 
 ## To-Do:
 - [ ] Error-Handling
- - [ ] Chat-Migrationen (momentan wird einfach nur die ID gelöscht
+ - [X] Chat-Migrationen (momentan wird einfach nur die ID gelöscht)
  - [ ] Bei zu vielen Requests alles aufsplitten?

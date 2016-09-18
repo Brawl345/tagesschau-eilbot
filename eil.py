@@ -21,7 +21,9 @@ import telegram
 from telegram.ext import Updater, Job, CommandHandler, MessageHandler, Filters
 from telegram.ext.dispatcher import run_async
 from telegram.error import (TelegramError, Unauthorized, BadRequest, 
-                            TimedOut, NetworkError)
+                            TimedOut, NetworkError, ChatMigrated)
+# Für "ChatMigrated" muss python-telegram-bot selbst kompiliert werden, da die
+# v5.0.0 aus PiP zu alt ist.
 
 # Bot-Konfiguration
 config = ConfigParser()
@@ -55,7 +57,8 @@ if not r.ping():
 def start(bot, update):
     if not r.sismember(hash, update.message.chat_id):
         r.sadd(hash, update.message.chat_id)
-        bot.sendMessage(update.message.chat_id, '<b>Du erhältst jetzt neue Eilmeldungen!</b>\nNutze /stop, um keine Eilmeldungen mehr zu erhalten.\nFür neue Tagesschau-Artikel, check doch mal den @TagesschauDE-Kanal.', reply_to_message_id=update.message.message_id, parse_mode=telegram.ParseMode.HTML)
+        print('Neuer Abonnent: ' + str(update.message.chat_id))
+        bot.sendMessage(update.message.chat_id, '<b>Du erhältst jetzt neue Eilmeldungen!</b>\nNutze /stop, um keine Eilmeldungen mehr zu erhalten.\nFür neue Tagesschau-Artikel, check doch mal den @TagesschauDE-Kanal.\n\n<b>ACHTUNG:</b> Wenn du den Bot blockierst oder aus der Gruppe entfernst, musst du die Eilmeldungen erneut abonnieren!', reply_to_message_id=update.message.message_id, parse_mode=telegram.ParseMode.HTML)
     else:
         bot.sendMessage(update.message.chat_id, 'Du erhältst bereits Eilmeldungen. Nutze /stop zum Deabonnieren.', reply_to_message_id=update.message.message_id)
 
@@ -63,6 +66,7 @@ def start(bot, update):
 def stop(bot, update):
     if r.sismember(hash, update.message.chat_id):
         r.srem(hash, update.message.chat_id)
+        print('Abonnement beendet: ' + str(update.message.chat_id))
         bot.sendMessage(update.message.chat_id, '<b>Du erhältst jetzt keine Eilmeldungen mehr.</b>\nNutze /start, um wieder Eilmeldungen zu erhalten.', reply_to_message_id=update.message.message_id, parse_mode=telegram.ParseMode.HTML)
     else:
         bot.sendMessage(update.message.chat_id, 'Du hast die Eilmeldungen bereits deabonniert. Mit /start kannst du diese wieder abonnieren.', reply_to_message_id=update.message.message_id)
@@ -85,6 +89,7 @@ def run_cron(bot, job):
       return
 
     if not last_eil or breakingnews[0]['date'] != last_eil.decode('utf-8'):
+      print(time.strftime("%d.%m.%Y, %H:%M:%S") + ' Uhr: Neue Eilmeldung')
       title = '<b>' + breakingnews[0]['headline'] + '</b>'
       news = breakingnews[0]['shorttext'].rstrip()
       details_url = breakingnews[0]['details']
@@ -95,11 +100,17 @@ def run_cron(bot, job):
       eilmeldung = title + '\n<i>' + posted_at + '</i>\n' + news + '\n<a href="' + post_url + '">Eilmeldung aufrufen</a>'
       r.set(lhash, breakingnews[0]['date'])
       for _, receiver in enumerate(list(r.smembers(hash))):
+        chat_id = receiver.decode('utf-8')
         try:
-            bot.sendMessage(receiver.decode('utf-8'), eilmeldung, parse_mode=telegram.ParseMode.HTML, disable_web_page_preview=True)
+            bot.sendMessage(chat_id, eilmeldung, parse_mode=telegram.ParseMode.HTML, disable_web_page_preview=True)
         except Unauthorized:
-            print('Chat existiert nicht mehr, lösche ihn aus der Abonnenten-Liste')
-            r.srem(hash, receiver.decode('utf-8'))
+            print('Chat ' + chat_id + 'existiert nicht mehr, lösche aus Abonnenten-Liste')
+            r.srem(hash, chat_id)
+        except ChatMigrated as e:
+            print('Chat migriert: ' + chat_id + ' -> ' + str(e.new_chat_id))
+            r.srem(hash, chat_id)
+            r.sadd(hash, e.new_chat_id)
+            bot.sendMessage(e.new_chat_id, eilmeldung, parse_mode=telegram.ParseMode.HTML, disable_web_page_preview=True)
 
 def error(bot, update, error):
     logger.warn('Update "%s" verursachte Fehler "%s"' % (update, error))
