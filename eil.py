@@ -74,7 +74,7 @@ def help(bot, update):
 @run_async
 def run_cron(bot, job):
     last_eil = r.get(lhash)
-    res = get('https://static.wiidatabase.de/personal/eil.json')
+    res = get('http://www.tagesschau.de/api/index.json')
     if res.status_code != 200:
       print(time.strftime("%d.%m.%Y, %H:%M:%S") + ' Uhr: HTTP-Fehler ' + str(res.status_code))
       return
