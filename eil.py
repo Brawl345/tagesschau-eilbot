@@ -58,22 +58,30 @@ def start(bot, update):
     if not r.sismember(hash, update.message.chat_id):
         r.sadd(hash, update.message.chat_id)
         print('Neuer Abonnent: ' + str(update.message.chat_id))
-        bot.sendMessage(update.message.chat_id, '<b>Du erhältst jetzt neue Eilmeldungen!</b>\nNutze /stop, um keine Eilmeldungen mehr zu erhalten.\nFür neue Tagesschau-Artikel, check doch mal den @TagesschauDE-Kanal.\n\n<b>ACHTUNG:</b> Wenn du den Bot blockierst oder aus der Gruppe entfernst, musst du die Eilmeldungen erneut abonnieren!', reply_to_message_id=update.message.message_id, parse_mode=telegram.ParseMode.HTML)
+        text = '<b>Du erhältst jetzt neue Eilmeldungen!</b>\n'
+        text += 'Nutze /stop, um keine Eilmeldungen mehr zu erhalten.\n'
+        text += 'Für neue Tagesschau-Artikel, check doch mal den @TagesschauDE-Kanal.\n\n'
+        text += '<b>ACHTUNG:</b> Wenn du den Bot blockierst oder aus der Gruppe entfernst, musst du die Eilmeldungen erneut abonnieren!'
     else:
-        bot.sendMessage(update.message.chat_id, 'Du erhältst bereits Eilmeldungen. Nutze /stop zum Deabonnieren.', reply_to_message_id=update.message.message_id)
+        text = '<b>Du erhältst bereits Eilmeldungen.</b> Nutze /stop zum Deabonnieren.'
+    bot.sendMessage(update.message.chat_id, text, reply_to_message_id=update.message.message_id, parse_mode=telegram.ParseMode.HTML)
 
 @run_async
 def stop(bot, update):
     if r.sismember(hash, update.message.chat_id):
         r.srem(hash, update.message.chat_id)
         print('Abonnement beendet: ' + str(update.message.chat_id))
-        bot.sendMessage(update.message.chat_id, '<b>Du erhältst jetzt keine Eilmeldungen mehr.</b>\nNutze /start, um wieder Eilmeldungen zu erhalten.', reply_to_message_id=update.message.message_id, parse_mode=telegram.ParseMode.HTML)
+        text = '<b>Du erhältst jetzt keine Eilmeldungen mehr.</b>\n'
+        text += 'Nutze /start, um wieder Eilmeldungen zu erhalten.'
     else:
-        bot.sendMessage(update.message.chat_id, 'Du hast die Eilmeldungen bereits deabonniert. Mit /start kannst du diese wieder abonnieren.', reply_to_message_id=update.message.message_id)
+        text = 'Du hast die Eilmeldungen bereits deabonniert. Mit /start kannst du diese wieder abonnieren.'
+    bot.sendMessage(update.message.chat_id, text, reply_to_message_id=update.message.message_id, parse_mode=telegram.ParseMode.HTML)
 
 @run_async
 def help(bot, update):
-    bot.sendMessage(update.message.chat_id, '/start: Eilmeldungen erhalten\n/stop: Eilmeldungen nicht mehr erhalten.', reply_to_message_id=update.message.message_id)
+    text = '/start: Eilmeldungen erhalten\n'
+    text += '/stop: Eilmeldungen nicht mehr erhalten'
+    bot.sendMessage(update.message.chat_id, text, reply_to_message_id=update.message.message_id)
     
 @run_async
 def run_cron(bot, job):
@@ -100,7 +108,9 @@ def run_cron(bot, job):
       post_url = post_url.replace('.json', '.html')
       posted_at = dateutil.parser.parse(breakingnews[0]['date'])
       posted_at = posted_at.strftime('%d.%m.%Y um %H:%M:%S Uhr')
-      eilmeldung = title + '\n<i>' + posted_at + '</i>\n' + news + '<a href="' + post_url + '">Eilmeldung aufrufen</a>'
+      eilmeldung = title + '\n'
+      eilmeldung += '<i>' + posted_at + '</i>\n'
+      eilmeldung += news + '<a href="' + post_url + '">Eilmeldung aufrufen</a>'
       r.set(lhash, breakingnews[0]['date'])
       for _, receiver in enumerate(list(r.smembers(hash))):
         chat_id = receiver.decode('utf-8')
