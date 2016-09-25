@@ -150,7 +150,7 @@ def main():
     j.put(job_minute, next_t=0.0)
 
     # Starte den Bot    
-    updater.start_polling(clean=True)
+    updater.start_polling(timeout=20)
 
     # Bot laufen lassen, bis CTRL+C gedrückt oder ein SIGINIT,
     # SIGTERM oder SIGABRT gesendet wird.
