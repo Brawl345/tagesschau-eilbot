@@ -91,7 +91,12 @@ def run_cron(bot, job):
       print(time.strftime("%d.%m.%Y, %H:%M:%S") + ' Uhr: HTTP-Fehler ' + str(res.status_code))
       return
     
-    data = loads(res.text)
+    try:
+      data = loads(res.text)
+    except ValueError:
+      print(time.strftime("%d.%m.%Y, %H:%M:%S") + ' Uhr: Kein valides JSON erhalten.')
+      return
+
     breakingnews = data['breakingnews']
     if not breakingnews:
       return
