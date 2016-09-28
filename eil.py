@@ -22,8 +22,6 @@ from telegram.ext import Updater, Job, CommandHandler, MessageHandler, Filters
 from telegram.ext.dispatcher import run_async
 from telegram.error import (TelegramError, Unauthorized, BadRequest, 
                             TimedOut, NetworkError, ChatMigrated)
-# Für "ChatMigrated" muss python-telegram-bot selbst kompiliert werden, da die
-# v5.0.0 aus PiP zu alt ist.
 
 # Bot-Konfiguration
 config = ConfigParser()
