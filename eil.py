@@ -107,8 +107,11 @@ def run_cron(bot, job):
       else:
         news = breakingnews[0]['shorttext'].rstrip() + '\n'
       details_url = breakingnews[0]['details']
-      post_url = details_url.replace('/api/', '/')
-      post_url = post_url.replace('.json', '.html')
+      if details_url != "":
+        post_url = details_url.replace('/api/', '/')
+        post_url = post_url.replace('.json', '.html')
+      else:
+        post_url = 'http://tagesschau.de'
       posted_at = dateutil.parser.parse(breakingnews[0]['date'])
       posted_at = posted_at.strftime('%d.%m.%Y um %H:%M:%S Uhr')
       eilmeldung = title + '\n'
@@ -149,8 +152,7 @@ def main():
     dp.add_error_handler(error)
     
     # Prüfe auf neue Eilmeldungen
-    job_minute = Job(run_cron, 60.0)
-    j.put(job_minute, next_t=0.0)
+    j.run_repeating(run_cron, interval=60.0, first=0.0, bootstrap_retries=-1, allowed_updates=["message"])
 
     # Starte den Bot    
     updater.start_polling(timeout=20)
