@@ -155,7 +155,7 @@ def main():
     dp.add_error_handler(error)
 
     # Prüfe auf neue Eilmeldungen
-    j.run_repeating(run_cron, interval=60.0, first=0.0, bootstrap_retries=-1, allowed_updates=["message"])
+    j.run_repeating(run_cron, interval=60.0, first=0.0)
 
     # Starte den Bot    
     updater.start_polling(timeout=20, clean=True, bootstrap_retries=-1, allowed_updates=["message"])
