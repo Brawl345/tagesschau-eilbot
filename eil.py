@@ -158,7 +158,7 @@ def main():
     j.run_repeating(run_cron, interval=60.0, first=0.0)
 
     # Starte den Bot    
-    updater.start_polling(timeout=20, clean=True, bootstrap_retries=-1, allowed_updates=["message"])
+    updater.start_polling(timeout=20, bootstrap_retries=-1, allowed_updates=["message"])
 
     # Bot laufen lassen, bis CTRL+C gedrückt oder ein SIGINIT,
     # SIGTERM oder SIGABRT gesendet wird.
