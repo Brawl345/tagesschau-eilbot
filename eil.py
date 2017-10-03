@@ -73,30 +73,50 @@ subscriber_hash = 'pythonbot:tagesschau:subs'
 last_entry_hash = 'pythonbot:tagesschau:last_entry'
 
 
+def is_group_admin(bot, update):
+    res = bot.getChatMember(chat_id=update.message.chat.id, user_id=update.message.from_user.id)
+    if res.status == 'creator' or res.status == 'administrator':
+        return True
+    else:
+        return False
+
+
 @run_async
 def start(bot, update):
+    if update.message.chat.type != 'private':
+        if not is_group_admin(bot, update):
+            update.message.reply_text('❌ Nur Gruppenadministratoren können Eilmeldungen abonnieren.')
+            return
     if not r.sismember(subscriber_hash, update.message.chat_id):
         r.sadd(subscriber_hash, update.message.chat_id)
         logger.info('Neuer Abonnent: ' + str(update.message.chat_id))
-        text = '<b>Du erhältst jetzt neue Eilmeldungen!</b>\n'
+        text = '<b>✅ Du erhältst jetzt neue Eilmeldungen!</b>\n'
         text += 'Nutze /stop, um keine Eilmeldungen mehr zu erhalten.\n'
-        text += 'Für neue Tagesschau-Artikel, check doch mal den @TagesschauDE-Kanal.\n\n'
-        text += '<b>ACHTUNG:</b> Wenn du den Bot blockierst oder aus der Gruppe entfernst, '
-        text += 'musst du die Eilmeldungen erneut abonnieren!'
+        text += 'Für neue Tagesschau-Artikel, check doch mal den @TagesschauDE-Kanal.\n\n<b>ACHTUNG:</b> '
+        if update.message.chat.type == 'private':
+            text += 'Wenn du den Bot blockierst, musst du die Eilmeldungen erneut abonnieren!'
+        else:
+            text += 'Wenn du den Bot aus der Gruppe entfernst, musst du die Eilmeldungen erneut abonnieren!'
     else:
-        text = '<b>Du erhältst bereits Eilmeldungen.</b> Nutze /stop zum Deabonnieren.'
+        text = '<b>✅ Du erhältst bereits Eilmeldungen.</b>\n'
+        text += 'Nutze /stop zum Deabonnieren.'
     update.message.reply_text(text, parse_mode=telegram.ParseMode.HTML)
 
 
 @run_async
 def stop(bot, update):
+    if update.message.chat.type != 'private':
+        if not is_group_admin(bot, update):
+            update.message.reply_text('❌ Nur Gruppenadministratoren können Eilmeldungen deabonnieren.')
+            return
     if r.sismember(subscriber_hash, update.message.chat_id):
         r.srem(subscriber_hash, update.message.chat_id)
         logger.info('Abonnement beendet: ' + str(update.message.chat_id))
-        text = '<b>Du erhältst jetzt keine Eilmeldungen mehr.</b>\n'
+        text = '<b>✅ Du erhältst jetzt keine Eilmeldungen mehr.</b>\n'
         text += 'Nutze /start, um wieder Eilmeldungen zu erhalten.'
     else:
-        text = 'Du hast die Eilmeldungen bereits deabonniert. Mit /start kannst du diese wieder abonnieren.'
+        text = '<b>❌ Keine Eilmeldungen abonniert.</b>\n'
+        text += 'Mit /start kannst du diese abonnieren.'
     update.message.reply_text(text, parse_mode=telegram.ParseMode.HTML)
 
 
