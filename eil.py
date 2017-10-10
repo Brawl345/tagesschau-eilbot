@@ -197,11 +197,11 @@ def run_job(bot, job=None):
                         disable_web_page_preview=True
                     )
             except telegram.error.Unauthorized:
-                logging.warning('Chat ' + member + ' existiert nicht mehr, wird gelöscht.')
+                logger.warning('Chat ' + member + ' existiert nicht mehr, wird gelöscht.')
                 r.srem(subscriber_hash, member)
             except telegram.error.ChatMigrated as new_chat:
                 new_chat_id = new_chat.new_chat_id
-                logging.info('Chat migriert: ' + member + ' -> ' + str(new_chat_id))
+                logger.info('Chat migriert: ' + member + ' -> ' + str(new_chat_id))
                 r.srem(subscriber_hash, member)
                 r.sadd(subscriber_hash, new_chat_id)
                 bot.sendMessage(
@@ -213,6 +213,8 @@ def run_job(bot, job=None):
                 )
             except telegram.error.TimedOut:
                 pass
+            except telegram.error.BadRequest as exception:
+                logger.error(exception)
 
 
 # Main function
