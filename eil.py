@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import html
 import logging
+import re
 import sys
 from configparser import ConfigParser
 from datetime import datetime
@@ -164,7 +165,8 @@ def run_job(bot, job=None):
         post_url = breakingnews[0]['details']
         post_url = post_url.replace('/api/', '/')
         post_url = post_url.replace('.json', '.html')
-        posted_at = data["date"].replace("+02:00", "+0200")
+        posted_at = breakingnews[0]["date"]
+        posted_at = re.sub(r"(\+\d{2}):(\d{2})", r"\1\2", posted_at)
         posted_at = datetime.strptime(posted_at, "%Y-%m-%dT%H:%M:%S.%f%z")
         posted_at = posted_at.strftime("%d.%m.%Y um %H:%M:%S Uhr")
         text = '<b>' + title + '</b>\n'
