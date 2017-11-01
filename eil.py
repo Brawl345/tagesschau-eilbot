@@ -151,7 +151,7 @@ def run_job(bot, job=None):
 
     breakingnews = data['breakingnews']
     if not breakingnews:
-        logger.debug('Keine neuen Eilmeldung')
+        logger.debug('Keine neue Eilmeldung')
         return
 
     if breakingnews[0]['details'] == '':
