@@ -137,7 +137,7 @@ def run_job_manually(bot, update):
 
 @run_async
 def run_job(bot, job=None):
-    logger.info('Prüfe auf neue Eilmeldungen')
+    logger.info('Prüfe auf neue Eilmeldung')
     res = get('http://www.tagesschau.de/api/index.json')
     if res.status_code != 200:
         logger.warning('HTTP-Fehler ' + str(res.status_code))
@@ -151,7 +151,11 @@ def run_job(bot, job=None):
 
     breakingnews = data['breakingnews']
     if not breakingnews:
-        logger.debug('Keine neuen Eilmeldungen')
+        logger.debug('Keine neuen Eilmeldung')
+        return
+
+    if breakingnews[0]['details'] == '':
+        logger.warning('Keine gültige Eilmeldung erhalten')
         return
 
     last_breaking = r.get(last_entry_hash)
