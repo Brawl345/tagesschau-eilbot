@@ -1,6 +1,11 @@
 [DEFAULT]
 token = 1337:1234567890abcdefgh
 
+[LOGGING]
+# Valid options are ERROR, INFO, DEBUG, CRITICAL, WARNING
+#level = INFO
+#format = %(asctime)s - %(name)s - %(levelname)s - %(message)s
+
 [REDIS]
 #db = 0
 #host = localhost
