@@ -147,41 +147,42 @@ def run_job_manually(bot, update):
 @run_async
 def run_job(bot, job=None):
     logger.info('Prüfe auf neue Eilmeldung')
-    res = get('http://www.tagesschau.de/api/index.json')
+    res = get('https://www.tagesschau.de/api2/')
     if res.status_code != 200:
         logger.warning('HTTP-Fehler ' + str(res.status_code))
         return
 
     try:
-        data = loads(res.text)
+        data = loads(res.text.replace('<!-- Error -->', ''))
     except ValueError:
         logger.warning('Kein valides JSON erhalten')
         return
 
-    breakingnews = data['breakingnews']
-    if not breakingnews:
+    if not data['news']:
+        logger.warning('Ungültiges Tagesschau-JSON')
+        return
+
+    breakingnews = data['news'][0]
+    if not breakingnews['breakingNews'] and 'story' not in breakingnews:
         logger.debug('Keine neue Eilmeldung')
         return
 
-    if breakingnews[0]['details'] == '':
+    if breakingnews['detailsweb'] == '':
         logger.warning('Keine gültige Eilmeldung erhalten')
         return
 
     last_breaking = r.get(last_entry_hash)
-    if not last_breaking or breakingnews[0]['date'] != last_breaking:
+    if not last_breaking or breakingnews['externalId'] != last_breaking:
         logger.info('Neue Eilmeldung')
-        title = html.escape(breakingnews[0]['headline'])
-        if 'shorttext' not in breakingnews[0]:
+        title = html.escape(breakingnews['title'])
+        if 'content' not in breakingnews or breakingnews['content'][0]['value'] == '':
             news = ''
         else:
-            news = html.escape(breakingnews[0]['shorttext']).strip() + '\n'
-        post_url = breakingnews[0]['details']
-        post_url = post_url.replace('/api/', '/')
-        post_url = post_url.replace('.json', '.html')
-        posted_at = breakingnews[0]["date"]
+            news = html.escape(breakingnews['content'][0]['value']).strip() + '\n'
+        post_url = breakingnews['detailsweb']
+        posted_at = breakingnews["date"]
         posted_at = re.sub(r"(\+\d{2}):(\d{2})", r"\1\2", posted_at)
-        posted_at = datetime.strptime(posted_at, "%Y-%m-%dT%H:%M:%S.%f%z")
-        posted_at = posted_at.strftime("%d.%m.%Y um %H:%M:%S Uhr")
+        posted_at = datetime.strptime(posted_at, "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d.%m.%Y um %H:%M:%S Uhr")
         text = '<b>' + title + '</b>\n'
         text += '<i>' + posted_at + '</i>\n'
         text += news
@@ -193,7 +194,7 @@ def run_job(bot, job=None):
                 ]
             ]
         )
-        r.set(last_entry_hash, breakingnews[0]['date'])
+        r.set(last_entry_hash, breakingnews['externalId'])
         for member in r.smembers(subscriber_hash):
             try:
                 if int(member) < 0:  # Group
