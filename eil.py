@@ -93,9 +93,9 @@ def is_group_admin(bot, update):
 
 
 @run_async
-def start(bot, update):
+def start(update, context):
     if update.message.chat.type != "private":
-        if not is_group_admin(bot, update):
+        if not is_group_admin(context.bot, update):
             update.message.reply_text("❌ Nur Gruppenadministratoren können Eilmeldungen abonnieren.")
             return
     if not r.sismember(subscriber_hash, update.message.chat_id):
@@ -115,9 +115,9 @@ def start(bot, update):
 
 
 @run_async
-def stop(bot, update):
+def stop(update, context):
     if update.message.chat.type != "private":
-        if not is_group_admin(bot, update):
+        if not is_group_admin(context.bot, update):
             update.message.reply_text("❌ Nur Gruppenadministratoren können Eilmeldungen deabonnieren.")
             return
     if r.sismember(subscriber_hash, update.message.chat_id):
@@ -132,25 +132,25 @@ def stop(bot, update):
 
 
 @run_async
-def help_text(bot, update):
+def help_text(update, context):
     text = "/start: Eilmeldungen erhalten\n"
     text += "/stop: Eilmeldungen nicht mehr erhalten"
     update.message.reply_text(text)
 
 
 @run_async
-def run_job_manually(bot, update):
+def run_job_manually(update, context):
     if update.message.chat.id not in admins:
         return
-    run_job(bot)
+    run_job(context)
 
 
 @run_async
-def run_job(bot, job=None):
+def run_job(context):
     logger.info("Prüfe auf neue Eilmeldung")
-    res = get("https://www.tagesschau.de/api2/")
+    res = get("https://andi7.uber.space/breakingnews.json")
     if res.status_code != 200:
-        logger.warning("HTTP-Fehler " + str(res.status_code))
+        logger.warning("HTTP-Fehler {0}".format(res.status_code))
         return
 
     try:
@@ -199,7 +199,7 @@ def run_job(bot, job=None):
         for member in r.smembers(subscriber_hash):
             try:
                 if int(member) < 0:  # Group
-                    bot.sendMessage(
+                    context.bot.sendMessage(
                         chat_id=member,
                         text="#EIL: " + text,
                         parse_mode=telegram.ParseMode.HTML,
@@ -207,7 +207,7 @@ def run_job(bot, job=None):
                         reply_markup=reply_markup
                     )
                 else:
-                    bot.sendMessage(
+                    context.bot.sendMessage(
                         chat_id=member,
                         text=text + text_link,
                         parse_mode=telegram.ParseMode.HTML,
@@ -221,7 +221,7 @@ def run_job(bot, job=None):
                 logger.info("Chat migriert: " + member + " -> " + str(new_chat_id))
                 r.srem(subscriber_hash, member)
                 r.sadd(subscriber_hash, new_chat_id)
-                bot.sendMessage(
+                context.bot.sendMessage(
                     chat_id=member,
                     text=text,
                     parse_mode=telegram.ParseMode.HTML,
@@ -237,7 +237,7 @@ def run_job(bot, job=None):
 # Main function
 def main():
     # Setup the updater and show bot info
-    updater = Updater(token=bot_token)
+    updater = Updater(token=bot_token, use_context=True)
     try:
         logger.info("Starte {0}, AKA @{1} ({2})".format(updater.bot.first_name, updater.bot.username, updater.bot.id))
     except Unauthorized:
