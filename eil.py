@@ -180,7 +180,7 @@ def run_job(context):
             news = ""
         else:
             news = html.escape(breakingnews["content"][0]["value"]).strip() + "\n"
-        post_url = breakingnews["detailsweb"]
+        post_url = breakingnews["detailsweb"].replace("http://", "https://")
         posted_at = breakingnews["date"]
         posted_at = re.sub(r"(\+\d{2}):(\d{2})", r"\1\2", posted_at)
         posted_at = datetime.strptime(posted_at, "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d.%m.%Y um %H:%M:%S Uhr")
