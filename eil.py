@@ -148,7 +148,7 @@ def run_job_manually(update, context):
 @run_async
 def run_job(context):
     logger.info("Prüfe auf neue Eilmeldung")
-    res = get("https://andi7.uber.space/breakingnews.json")
+    res = get("https://www.tagesschau.de/api2/")
     if res.status_code != 200:
         logger.warning("HTTP-Fehler {0}".format(res.status_code))
         return
