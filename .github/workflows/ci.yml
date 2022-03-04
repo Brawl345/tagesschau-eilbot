@@ -1,0 +1,48 @@
+on:
+  - push
+  - pull_request
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1.17'
+
+      - name: Build
+        run: |
+          env GOOS=linux GOARCH=amd64 go build -o dist/tagesschau-eilbot-linux-amd64
+          env GOOS=linux GOARCH=arm64 go build -o dist/tagesschau-eilbot-linux-arm64
+
+      - name: Compress binaries
+        uses: crazy-max/ghaction-upx@v1
+        with:
+          version: latest
+          files: |
+            ./dist/*
+          args: -fq --best
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: tagesschau-eilbot-${{github.sha}}.zip
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 90
+
