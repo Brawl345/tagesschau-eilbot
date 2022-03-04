@@ -27,8 +27,8 @@ jobs:
 
       - name: Build
         run: |
-          env GOOS=linux GOARCH=amd64 go build -o dist/tagesschau-eilbot-linux-amd64
-          env GOOS=linux GOARCH=arm64 go build -o dist/tagesschau-eilbot-linux-arm64
+          env GOOS=linux GOARCH=amd64 go build -o dist/tagesschau-eilbot-linux-amd64 bot/main.go
+          env GOOS=linux GOARCH=arm64 go build -o dist/tagesschau-eilbot-linux-arm64 bot/main.go
 
       - name: Compress binaries
         uses: crazy-max/ghaction-upx@v1
