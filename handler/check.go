@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"gopkg.in/telebot.v3"
 	"html"
 	"io"
@@ -27,40 +28,47 @@ type TagesschauResponse struct {
 	} `json:"news"`
 }
 
-func (h Handler) OnCheck() {
+func (h Handler) OnTimer() {
 	if h.Config.Debug {
 		log.Println("Checking for breaking news")
 	}
+
+	err := h.check()
+	if err != nil {
+		log.Println(err)
+	}
+
+	time.AfterFunc(1*time.Minute, h.OnTimer)
+}
+
+func (h Handler) check() error {
+
 	resp, err := http.Get(ApiUrl)
 	if err != nil {
-		log.Println("No response from request")
-		return
+		return err
 	}
 
 	if resp.StatusCode != 200 {
-		log.Println("Got HTTP error", resp.Status)
-		return
+		return fmt.Errorf("got HTTP error %s", resp.Status)
 	}
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		log.Println("Could not read body")
-		return
+		return err
 	}
 
 	var result TagesschauResponse
 	if err := json.Unmarshal(body, &result); err != nil {
-		log.Println("Can not unmarshal JSON")
-		return
+		return fmt.Errorf("can not unmarshal JSON: %w", err)
 	}
 
 	if len(result.News) == 0 {
 		if h.Config.Debug {
-			log.Println("No breaking news found")
+			log.Println("No news found")
 		}
-		return
+		return nil
 	}
 
 	breakingNews := result.News[0]
@@ -69,19 +77,18 @@ func (h Handler) OnCheck() {
 		if h.Config.Debug {
 			log.Println("Not a breaking news")
 		}
-		return
+		return nil
 	}
 
 	if breakingNews.Url == "" {
-		log.Println("Invalid breaking news")
-		return
+		return errors.New("invalid breaking news")
 	}
 
 	if h.Config.LastEntry == breakingNews.ExternalId {
 		if h.Config.Debug {
 			log.Println("Already notified of this breaking news")
 		}
-		return
+		return nil
 	}
 
 	log.Println("New breaking news found")
@@ -134,6 +141,8 @@ func (h Handler) OnCheck() {
 
 	err = h.Config.Save()
 	if err != nil {
-		log.Println("Failed writing config:", err)
+		return fmt.Errorf("failed writing config: %w", err)
 	}
+
+	return nil
 }

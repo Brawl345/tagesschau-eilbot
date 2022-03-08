@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/Brawl345/tagesschau-eilbot/handler"
 	"github.com/Brawl345/tagesschau-eilbot/storage"
-	"github.com/robfig/cron/v3"
 	"log"
 	"time"
 
@@ -36,9 +35,7 @@ func main() {
 		Config: config,
 	}
 
-	c := cron.New()
-	c.AddFunc("@every 1m", h.OnCheck)
-	c.Start()
+	time.AfterFunc(10*time.Second, h.OnTimer)
 
 	bot.Handle("/help", h.OnHelp)
 	bot.Handle("/hilfe", h.OnHelp)
