@@ -3,6 +3,7 @@ package handler
 import (
 	"gopkg.in/telebot.v3"
 	"log"
+	"strings"
 )
 
 func (h Handler) OnStop(c telebot.Context) error {
@@ -13,27 +14,25 @@ func (h Handler) OnStop(c telebot.Context) error {
 	}
 
 	chatId := c.Chat().ID
+	sb := strings.Builder{}
 
-	var text string
-
-	err := h.Config.RemoveSubscriber(chatId)
-
-	if err == nil {
-		log.Println("Removed subscription:", chatId)
-		err := h.Config.Save()
-
-		if err != nil {
-			log.Println("Failed writing config:", err)
-			return c.Send("❌ Beim Deabonnieren ist ein Fehler aufgetreten.", defaultSendOptions)
-		}
-
-		text = "<b>✅ Du erhältst jetzt keine Eilmeldungen mehr.</b>\n"
-		text += "Nutze /start, um wieder Eilmeldungen zu erhalten.\n"
-	} else {
-		text = "<b>❌ Eilmeldungen wurden noch nicht abonniert.</b>\n"
-		text += "Nutze /start zum Abonnieren."
+	exists, _ := h.DB.Subscribers.Exists(chatId)
+	if !exists {
+		sb.WriteString("<b>❌ Eilmeldungen wurden noch nicht abonniert.</b>\n")
+		sb.WriteString("Nutze /start zum Abonnieren.")
+		return c.Send(sb.String(), defaultSendOptions)
 	}
 
-	return c.Send(text, defaultSendOptions)
+	err := h.DB.Subscribers.Delete(chatId)
+	if err != nil {
+		log.Println(err)
+		return c.Send("❌ Beim Deabonnieren ist ein Fehler aufgetreten.", defaultSendOptions)
+	}
 
+	log.Println("Removed subscription:", chatId)
+
+	sb.WriteString("<b>✅ Du erhältst jetzt keine Eilmeldungen mehr.</b>\n")
+	sb.WriteString("Nutze /start, um wieder Eilmeldungen zu erhalten.\n")
+
+	return c.Send(sb.String(), defaultSendOptions)
 }

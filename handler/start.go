@@ -3,6 +3,7 @@ package handler
 import (
 	"gopkg.in/telebot.v3"
 	"log"
+	"strings"
 )
 
 func (h Handler) OnStart(c telebot.Context) error {
@@ -13,33 +14,33 @@ func (h Handler) OnStart(c telebot.Context) error {
 	}
 
 	chatId := c.Chat().ID
+	sb := strings.Builder{}
 
-	var text string
-	err := h.Config.AddSubscriber(chatId)
-
-	if err != nil {
-		text = "<b>✅ Du erhältst bereits Eilmeldungen.</b>\n"
-		text += "Nutze /stop zum Deabonnieren."
-	} else {
-		log.Println("New subscriber:", chatId)
-		err := h.Config.Save()
-
-		if err != nil {
-			log.Println("Failed writing config:", err)
-			return c.Send("❌ Beim Abonnieren ist ein Fehler aufgetreten.", defaultSendOptions)
-		}
-
-		text = "<b>✅ Du erhältst jetzt neue Eilmeldungen!</b>\n"
-		text += "Nutze /stop, um keine Eilmeldungen mehr zu erhalten.\n"
-		text += "Für neue Tagesschau-Artikel, abonniere den @TagesschauDE-Kanal.\n\n"
-
-		text += "<b>ACHTUNG:</b> "
-		if c.Chat().Type == telebot.ChatPrivate {
-			text += "Wenn du den Bot blockierst, musst du die Eilmeldungen erneut abonnieren!"
-		} else {
-			text += "Wenn du den Bot aus der Gruppe entfernst, musst du die Eilmeldungen erneut abonnieren!"
-		}
+	exists, _ := h.DB.Subscribers.Exists(chatId)
+	if exists {
+		sb.WriteString("<b>✅ Du erhältst bereits Eilmeldungen.</b>\n")
+		sb.WriteString("Nutze /stop zum Deabonnieren.")
+		return c.Send(sb.String(), defaultSendOptions)
 	}
 
-	return c.Send(text, defaultSendOptions)
+	err := h.DB.Subscribers.Create(chatId)
+	if err != nil {
+		log.Println(err)
+		return c.Send("❌ Beim Abonnieren ist ein Fehler aufgetreten.", defaultSendOptions)
+	}
+
+	log.Println("New subscriber:", chatId)
+
+	sb.WriteString("<b>✅ Du erhältst jetzt neue Eilmeldungen!</b>\n")
+	sb.WriteString("Nutze /stop, um keine Eilmeldungen mehr zu erhalten.\n")
+	sb.WriteString("Für neue Tagesschau-Artikel, abonniere den @TagesschauDE-Kanal.\n\n")
+
+	sb.WriteString("<b>ACHTUNG:</b> ")
+	if c.Chat().Type == telebot.ChatPrivate {
+		sb.WriteString("Wenn du den Bot blockierst, musst du die Eilmeldungen erneut abonnieren!")
+	} else {
+		sb.WriteString("Wenn du den Bot aus der Gruppe entfernst, musst du die Eilmeldungen erneut abonnieren!")
+	}
+
+	return c.Send(sb.String(), defaultSendOptions)
 }

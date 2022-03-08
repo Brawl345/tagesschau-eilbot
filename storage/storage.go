@@ -1,72 +1,38 @@
 package storage
 
 import (
-	"encoding/json"
-	"errors"
-	"os"
+	"embed"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
+	migrate "github.com/rubenv/sql-migrate"
 )
 
-const fileName string = "config.json"
+//go:embed migrations/*
+var embeddedMigrations embed.FS
 
-type Config struct {
-	Token       string  `json:"token"`
-	LastEntry   string  `json:"last_entry"`
-	Subscribers []int64 `json:"subscribers"`
-	Debug       bool    `json:"debug"`
+type DB struct {
+	*sqlx.DB
+	Subscribers SubscribersStorage
+	System      SystemStorage
 }
 
-func (config *Config) Load() error {
-	configFile, err := os.ReadFile(fileName)
-
+func Open(url string) (*DB, error) {
+	db, err := sqlx.Open("mysql", url)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	err = json.Unmarshal(configFile, &config)
-	return nil
+	db.SetMaxIdleConns(100)
+	db.SetMaxOpenConns(100)
+
+	return &DB{
+		DB:          db,
+		Subscribers: &Subscribers{db},
+		System:      &System{db},
+	}, nil
 }
 
-func (config *Config) Save() error {
-	file, err := json.MarshalIndent(config, "", "  ")
-
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(fileName, file, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (config *Config) AddSubscriber(chatId int64) error {
-	isSubscriber, _ := config.isSubscriber(chatId)
-	if isSubscriber {
-		return errors.New("chatId is already a subscriber")
-	}
-	config.Subscribers = append(config.Subscribers, chatId)
-
-	return nil
-}
-
-func (config *Config) RemoveSubscriber(chatId int64) error {
-	isSubscriber, index := config.isSubscriber(chatId)
-	if !isSubscriber {
-		return errors.New("chatId is not a subscriber")
-	}
-	config.Subscribers[index] = config.Subscribers[len(config.Subscribers)-1]
-	config.Subscribers = config.Subscribers[:len(config.Subscribers)-1]
-
-	return nil
-}
-
-func (config *Config) isSubscriber(chatId int64) (bool, int) {
-	for i, v := range config.Subscribers {
-		if v == chatId {
-			return true, i
-		}
-	}
-
-	return false, -1
+func (db *DB) Migrate() (int, error) {
+	migrations := &migrate.EmbedFileSystemMigrationSource{FileSystem: embeddedMigrations, Root: "migrations"}
+	return migrate.Exec(db.DB.DB, "mysql", migrations, migrate.Up)
 }

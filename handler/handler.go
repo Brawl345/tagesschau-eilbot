@@ -6,6 +6,6 @@ import (
 )
 
 type Handler struct {
-	Bot    *telebot.Bot
-	Config *storage.Config
+	Bot *telebot.Bot
+	DB  *storage.DB
 }

@@ -26,7 +26,7 @@ type TagesschauResponse struct {
 }
 
 func (h Handler) OnTimer() {
-	if h.Config.Debug {
+	if isDebugMode() {
 		log.Println("Checking for breaking news")
 	}
 
@@ -39,7 +39,6 @@ func (h Handler) OnTimer() {
 }
 
 func (h Handler) check() error {
-
 	resp, err := http.Get(ApiUrl)
 	if err != nil {
 		return err
@@ -62,7 +61,7 @@ func (h Handler) check() error {
 	}
 
 	if result.BreakingNews.Id == "" {
-		if h.Config.Debug {
+		if isDebugMode() {
 			log.Println("No breaking news found")
 		}
 		return nil
@@ -72,15 +71,19 @@ func (h Handler) check() error {
 		return errors.New("invalid breaking news")
 	}
 
-	if h.Config.LastEntry == result.BreakingNews.Id {
-		if h.Config.Debug {
+	lastEntry, err := h.DB.System.GetLastEntry()
+	if err != nil {
+		return fmt.Errorf("error while getting last entry: %w", err)
+	}
+
+	if lastEntry == result.BreakingNews.Id {
+		if isDebugMode() {
 			log.Println("Already notified of this breaking news")
 		}
 		return nil
 	}
 
 	log.Println("New breaking news found")
-	h.Config.LastEntry = result.BreakingNews.Id
 
 	sb := strings.Builder{}
 
@@ -98,7 +101,12 @@ func (h Handler) check() error {
 	groupText := "#EIL: " + sb.String()
 	privateText := sb.String() + textLink
 
-	for _, subscriber := range h.Config.Subscribers {
+	subscribers, err := h.DB.Subscribers.GetAll()
+	if err != nil {
+		return fmt.Errorf("error while getting subscribers: %w", err)
+	}
+
+	for _, subscriber := range subscribers {
 		if subscriber < 0 { // Group
 			_, err = h.Bot.Send(telebot.ChatID(subscriber), groupText, &telebot.SendOptions{
 				DisableWebPagePreview: true,
@@ -112,21 +120,21 @@ func (h Handler) check() error {
 		if err != nil {
 			if errors.Is(err, telebot.ErrChatNotFound) {
 				log.Printf("Chat %d not found, will be deleted", subscriber)
-				h.Config.RemoveSubscriber(subscriber)
+				h.DB.Subscribers.Delete(subscriber)
 			} else if errors.Is(err, telebot.ErrGroupMigrated) {
 				log.Printf("Chat %d migrated to new group", subscriber)
-				h.Config.RemoveSubscriber(subscriber)
-				h.Config.AddSubscriber(err.(*telebot.GroupError).MigratedTo)
+				h.DB.Subscribers.Delete(subscriber)
+				h.DB.Subscribers.Create(err.(*telebot.GroupError).MigratedTo)
 			} else {
 				log.Println(err)
 			}
-
 		}
+
 	}
 
-	err = h.Config.Save()
+	err = h.DB.System.SetLastEntry(result.BreakingNews.Id)
 	if err != nil {
-		return fmt.Errorf("failed writing config: %w", err)
+		return fmt.Errorf("failed writing last entry to DB: %w", err)
 	}
 
 	return nil

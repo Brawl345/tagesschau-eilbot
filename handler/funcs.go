@@ -3,12 +3,18 @@ package handler
 import (
 	"gopkg.in/telebot.v3"
 	"log"
+	"os"
 )
 
 var defaultSendOptions = &telebot.SendOptions{
 	AllowWithoutReply:     true,
 	DisableWebPagePreview: true,
 	ParseMode:             telebot.ModeHTML,
+}
+
+func isDebugMode() bool {
+	_, exists := os.LookupEnv("TAGESSCHAU_EILBOT_DEBUG")
+	return exists
 }
 
 func isGroupAdmin(bot *telebot.Bot, chatId, userId int64) bool {
