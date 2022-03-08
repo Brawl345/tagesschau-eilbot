@@ -95,15 +95,18 @@ func (h Handler) check() error {
 	btn := replyMarkup.URL("Eilmeldung aufrufen", result.BreakingNews.Url)
 	replyMarkup.Inline(replyMarkup.Row(btn))
 
+	groupText := "#EIL: " + sb.String()
+	privateText := sb.String() + textLink
+
 	for _, subscriber := range h.Config.Subscribers {
 		if subscriber < 0 { // Group
-			_, err = h.Bot.Send(telebot.ChatID(subscriber), "#EIL: "+sb.String(), &telebot.SendOptions{
+			_, err = h.Bot.Send(telebot.ChatID(subscriber), groupText, &telebot.SendOptions{
 				DisableWebPagePreview: true,
 				ParseMode:             telebot.ModeHTML,
 				ReplyMarkup:           replyMarkup,
 			})
 		} else {
-			_, err = h.Bot.Send(telebot.ChatID(subscriber), sb.String()+textLink, defaultSendOptions)
+			_, err = h.Bot.Send(telebot.ChatID(subscriber), privateText, defaultSendOptions)
 		}
 
 		if err != nil {
