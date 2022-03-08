@@ -108,33 +108,49 @@ func (h Handler) check() error {
 
 	for _, subscriber := range subscribers {
 		if subscriber < 0 { // Group
-			_, err = h.Bot.Send(telebot.ChatID(subscriber), groupText, &telebot.SendOptions{
+			err = h.sendText(subscriber, groupText, &telebot.SendOptions{
 				DisableWebPagePreview: true,
 				ParseMode:             telebot.ModeHTML,
 				ReplyMarkup:           replyMarkup,
 			})
 		} else {
-			_, err = h.Bot.Send(telebot.ChatID(subscriber), privateText, defaultSendOptions)
+			err = h.sendText(subscriber, privateText, defaultSendOptions)
 		}
 
 		if err != nil {
-			if errors.Is(err, telebot.ErrChatNotFound) {
-				log.Printf("Chat %d not found, will be deleted", subscriber)
-				h.DB.Subscribers.Delete(subscriber)
-			} else if errors.Is(err, telebot.ErrGroupMigrated) {
-				log.Printf("Chat %d migrated to new group", subscriber)
-				h.DB.Subscribers.Delete(subscriber)
-				h.DB.Subscribers.Create(err.(*telebot.GroupError).MigratedTo)
-			} else {
-				log.Println(err)
-			}
+			log.Printf("Error for subscriber %d: %s", subscriber, err)
 		}
-
 	}
 
 	err = h.DB.System.SetLastEntry(result.BreakingNews.Id)
 	if err != nil {
 		return fmt.Errorf("failed writing last entry to DB: %w", err)
+	}
+
+	return nil
+}
+
+func (h Handler) sendText(subscriber int64, text string, sendOptions *telebot.SendOptions) error {
+	_, err := h.Bot.Send(telebot.ChatID(subscriber), text, sendOptions)
+
+	if err != nil {
+		if errors.Is(err, telebot.ErrChatNotFound) {
+			log.Printf("Chat %d not found, will be deleted", subscriber)
+			h.DB.Subscribers.Delete(subscriber)
+		} else if errors.Is(err, telebot.ErrGroupMigrated) {
+			migratedTo := err.(*telebot.GroupError).MigratedTo
+			log.Printf("Chat %d migrated to new group %d", subscriber, migratedTo)
+			h.DB.Subscribers.Delete(subscriber)
+			h.DB.Subscribers.Create(migratedTo)
+			return h.sendText(migratedTo, text, sendOptions)
+		} else if errors.As(err, &telebot.FloodError{}) {
+			retryAfter := err.(telebot.FloodError).RetryAfter
+			log.Printf("%d: Flood error, retrying after: %d seconds", subscriber, retryAfter)
+			time.Sleep(time.Duration(retryAfter) * time.Second)
+			h.sendText(subscriber, text, sendOptions)
+		} else {
+			return err
+		}
 	}
 
 	return nil
