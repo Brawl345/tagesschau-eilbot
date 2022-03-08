@@ -13,19 +13,16 @@ import (
 	"time"
 )
 
-const ApiUrl string = "https://www.tagesschau.de/api2"
+const ApiUrl string = "https://www.tagesschau.de/ipa/v1/web/headerapp/"
 
 type TagesschauResponse struct {
-	News []struct {
-		ExternalId   string `json:"externalId"`
-		Date         string `json:"date"`
-		Title        string `json:"title"`
-		Url          string `json:"detailsweb"`
-		BreakingNews bool   `json:"breakingNews"`
-		Content      []struct {
-			Value string `json:"value"`
-		}
-	} `json:"news"`
+	BreakingNews struct {
+		Id       string `json:"id"`
+		Headline string `json:"headline"`
+		Text     string `json:"text"`
+		Url      string `json:"url"`
+		Date     string `json:"date"`
+	} `json:"breakingNews"`
 }
 
 func (h Handler) OnTimer() {
@@ -64,27 +61,18 @@ func (h Handler) check() error {
 		return fmt.Errorf("can not unmarshal JSON: %w", err)
 	}
 
-	if len(result.News) == 0 {
+	if result.BreakingNews.Id == "" {
 		if h.Config.Debug {
-			log.Println("No news found")
+			log.Println("No breaking news found")
 		}
 		return nil
 	}
 
-	breakingNews := result.News[0]
-
-	if !breakingNews.BreakingNews {
-		if h.Config.Debug {
-			log.Println("Not a breaking news")
-		}
-		return nil
-	}
-
-	if breakingNews.Url == "" {
+	if result.BreakingNews.Url == "" {
 		return errors.New("invalid breaking news")
 	}
 
-	if h.Config.LastEntry == breakingNews.ExternalId {
+	if h.Config.LastEntry == result.BreakingNews.Id {
 		if h.Config.Debug {
 			log.Println("Already notified of this breaking news")
 		}
@@ -92,36 +80,30 @@ func (h Handler) check() error {
 	}
 
 	log.Println("New breaking news found")
-	h.Config.LastEntry = breakingNews.ExternalId
+	h.Config.LastEntry = result.BreakingNews.Id
 
-	text := "<b>" + html.EscapeString(breakingNews.Title) + "</b>\n"
+	sb := strings.Builder{}
 
-	time, _ := time.Parse("2006-01-02T15:04:05.000-07:00", breakingNews.Date)
-	text += "<i>" + time.Format("02.01.2006 um 15:04:05 Uhr") + "</i>\n"
-
-	text += ""
-	if len(breakingNews.Content) > 0 && breakingNews.Content[0].Value != "" {
-		content := breakingNews.Content[0].Value
-		content = strings.Replace(content, "<em>", "", -1)
-		content = strings.Replace(content, "</em>", "", -1)
-		text += html.EscapeString(strings.TrimSpace(content)) + "\n"
+	sb.WriteString(fmt.Sprintf("<b>%s</b>\n", html.EscapeString(result.BreakingNews.Headline)))
+	sb.WriteString(fmt.Sprintf("<i>%s</i>\n", html.EscapeString(result.BreakingNews.Date)))
+	if result.BreakingNews.Text != "" {
+		sb.WriteString(fmt.Sprintf("%s\n", html.EscapeString(strings.TrimSpace(result.BreakingNews.Text))))
 	}
 
-	postLink := strings.Replace(breakingNews.Url, "http://", "https://", -1)
-	textLink := "<a href=\"" + postLink + "\">Eilmeldung aufrufen</a>"
+	textLink := fmt.Sprintf("<a href=\"%s\">Eilmeldung aufrufen</a>", result.BreakingNews.Url)
 	replyMarkup := h.Bot.NewMarkup()
-	btn := replyMarkup.URL("Eilmeldung aufrufen", breakingNews.Url)
+	btn := replyMarkup.URL("Eilmeldung aufrufen", result.BreakingNews.Url)
 	replyMarkup.Inline(replyMarkup.Row(btn))
 
 	for _, subscriber := range h.Config.Subscribers {
 		if subscriber < 0 { // Group
-			_, err = h.Bot.Send(telebot.ChatID(subscriber), "#EIL: "+text, &telebot.SendOptions{
+			_, err = h.Bot.Send(telebot.ChatID(subscriber), "#EIL: "+sb.String(), &telebot.SendOptions{
 				DisableWebPagePreview: true,
 				ParseMode:             telebot.ModeHTML,
 				ReplyMarkup:           replyMarkup,
 			})
 		} else {
-			_, err = h.Bot.Send(telebot.ChatID(subscriber), text+textLink, defaultSendOptions)
+			_, err = h.Bot.Send(telebot.ChatID(subscriber), sb.String()+textLink, defaultSendOptions)
 		}
 
 		if err != nil {
