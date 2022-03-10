@@ -7,7 +7,7 @@ import (
 )
 
 func (h Handler) OnStop(c telebot.Context) error {
-	if c.Chat().Type != telebot.ChatPrivate {
+	if c.Message().FromGroup() {
 		if !isGroupAdmin(h.Bot, c.Chat().ID, c.Message().Sender.ID) {
 			return c.Send("❌ Nur Gruppenadministratoren können Eilmeldungen deabonnieren.", defaultSendOptions)
 		}

@@ -7,7 +7,7 @@ import (
 )
 
 func (h Handler) OnStart(c telebot.Context) error {
-	if c.Chat().Type != telebot.ChatPrivate {
+	if c.Message().FromGroup() {
 		if !isGroupAdmin(h.Bot, c.Chat().ID, c.Message().Sender.ID) {
 			return c.Send("❌ Nur Gruppenadministratoren können Eilmeldungen abonnieren.", defaultSendOptions)
 		}
@@ -36,7 +36,7 @@ func (h Handler) OnStart(c telebot.Context) error {
 	sb.WriteString("Für neue Tagesschau-Artikel, abonniere den @TagesschauDE-Kanal.\n\n")
 
 	sb.WriteString("<b>ACHTUNG:</b> ")
-	if c.Chat().Type == telebot.ChatPrivate {
+	if c.Message().Private() {
 		sb.WriteString("Wenn du den Bot blockierst, musst du die Eilmeldungen erneut abonnieren!")
 	} else {
 		sb.WriteString("Wenn du den Bot aus der Gruppe entfernst, musst du die Eilmeldungen erneut abonnieren!")
