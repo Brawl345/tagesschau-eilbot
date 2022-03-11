@@ -5,6 +5,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	migrate "github.com/rubenv/sql-migrate"
+	"time"
 )
 
 //go:embed migrations/*
@@ -24,6 +25,7 @@ func Open(url string) (*DB, error) {
 
 	db.SetMaxIdleConns(100)
 	db.SetMaxOpenConns(100)
+	db.SetConnMaxIdleTime(3 * time.Minute)
 
 	return &DB{
 		DB:          db,
