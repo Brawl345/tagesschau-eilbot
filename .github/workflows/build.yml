@@ -59,7 +59,7 @@ jobs:
           version: latest
           files: |
             ./dist/*
-          args: -fq --best
+          args: -fq --best --lzma
 
       - name: Upload binary
         uses: actions/upload-artifact@v3
