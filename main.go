@@ -6,6 +6,8 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"gopkg.in/telebot.v3"
@@ -54,6 +56,23 @@ func main() {
 	bot.Handle("/hilfe", h.OnHelp)
 	bot.Handle("/start", h.OnStart)
 	bot.Handle("/stop", h.OnStop)
+
+	channel := make(chan os.Signal)
+	signal.Notify(channel, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(channel, os.Interrupt, syscall.SIGKILL)
+	signal.Notify(channel, os.Interrupt, syscall.SIGINT)
+	go func() {
+		<-channel
+		log.Println("Stopping...")
+		bot.Stop()
+		err := db.Close()
+		if err != nil {
+			log.Println(err)
+			os.Exit(1)
+			return
+		}
+		os.Exit(0)
+	}()
 
 	bot.Start()
 }
