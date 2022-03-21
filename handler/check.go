@@ -133,6 +133,9 @@ func (h Handler) check() error {
 func (h Handler) sendText(subscriber int64, text string, sendOptions *telebot.SendOptions) error {
 	_, err := h.Bot.Send(telebot.ChatID(subscriber), text, sendOptions)
 
+	var telebotError *telebot.Error
+	var floodError *telebot.FloodError
+
 	if err != nil {
 		if errors.Is(err, telebot.ErrChatNotFound) {
 			log.Printf("Chat %d not found, will be deleted", subscriber)
@@ -143,11 +146,16 @@ func (h Handler) sendText(subscriber int64, text string, sendOptions *telebot.Se
 			h.DB.Subscribers.Delete(subscriber)
 			h.DB.Subscribers.Create(migratedTo)
 			return h.sendText(migratedTo, text, sendOptions)
-		} else if errors.As(err, &telebot.FloodError{}) {
-			retryAfter := err.(telebot.FloodError).RetryAfter
+		} else if errors.As(err, floodError) {
+			retryAfter := floodError.RetryAfter
 			log.Printf("%d: Flood error, retrying after: %d seconds", subscriber, retryAfter)
 			time.Sleep(time.Duration(retryAfter) * time.Second)
 			h.sendText(subscriber, text, sendOptions)
+		} else if errors.As(err, &telebotError) {
+			if telebotError.Code == 403 {
+				log.Printf("%d: %s, will be removed", subscriber, telebotError.Description)
+				h.DB.Subscribers.Delete(subscriber)
+			}
 		} else {
 			return err
 		}
