@@ -134,6 +134,7 @@ func (h Handler) sendText(subscriber int64, text string, sendOptions *telebot.Se
 	_, err := h.Bot.Send(telebot.ChatID(subscriber), text, sendOptions)
 
 	var telebotError *telebot.Error
+	var floodError *telebot.FloodError
 
 	if err != nil {
 		if errors.Is(err, telebot.ErrChatNotFound) {
@@ -145,8 +146,8 @@ func (h Handler) sendText(subscriber int64, text string, sendOptions *telebot.Se
 			h.DB.Subscribers.Delete(subscriber)
 			h.DB.Subscribers.Create(migratedTo)
 			return h.sendText(migratedTo, text, sendOptions)
-		} else if errors.As(err, &telebot.FloodError{}) {
-			retryAfter := err.(telebot.FloodError).RetryAfter
+		} else if errors.As(err, &floodError) {
+			retryAfter := floodError.RetryAfter
 			log.Printf("%d: Flood error, retrying after: %d seconds", subscriber, retryAfter)
 			time.Sleep(time.Duration(retryAfter) * time.Second)
 			h.sendText(subscriber, text, sendOptions)
