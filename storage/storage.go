@@ -2,10 +2,14 @@ package storage
 
 import (
 	"embed"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	migrate "github.com/rubenv/sql-migrate"
-	"time"
 )
 
 //go:embed migrations/*
@@ -17,20 +21,35 @@ type DB struct {
 	System      SystemStorage
 }
 
-func Open(url string) (*DB, error) {
-	db, err := sqlx.Open("mysql", url)
+func Connect() (*DB, error) {
+	host := strings.TrimSpace(os.Getenv("MYSQL_HOST"))
+	port := strings.TrimSpace(os.Getenv("MYSQL_PORT"))
+	user := strings.TrimSpace(os.Getenv("MYSQL_USER"))
+	password := strings.TrimSpace(os.Getenv("MYSQL_PASSWORD"))
+	db := strings.TrimSpace(os.Getenv("MYSQL_DB"))
+
+	connectionString := fmt.Sprintf(
+		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		user,
+		password,
+		host,
+		port,
+		db,
+	)
+
+	conn, err := sqlx.Connect("mysql", connectionString)
 	if err != nil {
 		return nil, err
 	}
 
-	db.SetMaxIdleConns(100)
-	db.SetMaxOpenConns(100)
-	db.SetConnMaxIdleTime(3 * time.Minute)
+	conn.SetMaxIdleConns(100)
+	conn.SetMaxOpenConns(100)
+	conn.SetConnMaxIdleTime(3 * time.Minute)
 
 	return &DB{
-		DB:          db,
-		Subscribers: &Subscribers{db},
-		System:      &System{db},
+		DB:          conn,
+		Subscribers: &Subscribers{DB: conn},
+		System:      &System{DB: conn},
 	}, nil
 }
 

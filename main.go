@@ -1,25 +1,22 @@
 package main
 
 import (
-	"github.com/Brawl345/tagesschau-eilbot/handler"
-	"github.com/Brawl345/tagesschau-eilbot/storage"
-	_ "github.com/joho/godotenv/autoload"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/Brawl345/tagesschau-eilbot/handler"
+	"github.com/Brawl345/tagesschau-eilbot/storage"
+	_ "github.com/joho/godotenv/autoload"
+
 	"gopkg.in/telebot.v3"
 )
 
 func main() {
-	db, err := storage.Open(os.Getenv("TAGESSCHAU_EILBOT_MYSQL_URL"))
+	db, err := storage.Connect()
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := db.Ping(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -34,7 +31,7 @@ func main() {
 	}
 
 	pref := telebot.Settings{
-		Token:  os.Getenv("TAGESSCHAU_EILBOT_TOKEN"),
+		Token:  os.Getenv("BOT_TOKEN"),
 		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
 	}
 

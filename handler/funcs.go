@@ -1,9 +1,10 @@
 package handler
 
 import (
-	"gopkg.in/telebot.v3"
 	"log"
 	"os"
+
+	"gopkg.in/telebot.v3"
 )
 
 var defaultSendOptions = &telebot.SendOptions{
@@ -13,7 +14,7 @@ var defaultSendOptions = &telebot.SendOptions{
 }
 
 func isDebugMode() bool {
-	_, exists := os.LookupEnv("TAGESSCHAU_EILBOT_DEBUG")
+	_, exists := os.LookupEnv("DEBUG")
 	return exists
 }
 
