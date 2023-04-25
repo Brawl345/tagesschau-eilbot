@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const ApiUrl string = "https://www.tagesschau.de/ipa/v1/web/headerapp/"
+const ApiUrl string = "https://www.tagesschau.de/json/headerapp"
 
 type TagesschauResponse struct {
 	BreakingNews struct {
