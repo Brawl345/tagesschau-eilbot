@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Cache
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cache/go-build
@@ -38,7 +38,7 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GOVER }}
 
@@ -51,15 +51,6 @@ jobs:
       - name: Rename binaries (Windows)
         if: matrix.GOOS == 'windows'
         run: for x in dist/$NAME-windows-*; do mv $x $x.exe; done
-
-      - name: Compress binary
-        if: matrix.GOOS != 'windows' || matrix.GOARCH != 'arm64'
-        uses: crazy-max/ghaction-upx@v1
-        with:
-          version: latest
-          files: |
-            ./dist/*
-          args: -fq --best --lzma
 
       - name: Upload binary
         uses: actions/upload-artifact@v3
