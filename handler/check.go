@@ -16,7 +16,7 @@ import (
 const ApiUrl string = "https://www.tagesschau.de/json/headerapp"
 
 type TagesschauResponse struct {
-	BreakingNews struct {
+	BreakingNews []struct {
 		Id       string `json:"id"`
 		Headline string `json:"headline"`
 		Text     string `json:"text"`
@@ -60,14 +60,16 @@ func (h Handler) check() error {
 		return fmt.Errorf("can not unmarshal JSON: %w", err)
 	}
 
-	if result.BreakingNews.Id == "" {
+	if len(result.BreakingNews) == 0 || result.BreakingNews[0].Id == "" {
 		if isDebugMode() {
 			log.Println("No breaking news found")
 		}
 		return nil
 	}
 
-	if result.BreakingNews.Url == "" {
+	breakingNews := result.BreakingNews[0]
+
+	if breakingNews.Url == "" {
 		return errors.New("invalid breaking news")
 	}
 
@@ -76,7 +78,7 @@ func (h Handler) check() error {
 		return fmt.Errorf("error while getting last entry: %w", err)
 	}
 
-	if lastEntry == result.BreakingNews.Id {
+	if lastEntry == breakingNews.Id {
 		if isDebugMode() {
 			log.Println("Already notified of this breaking news")
 		}
@@ -87,15 +89,20 @@ func (h Handler) check() error {
 
 	sb := strings.Builder{}
 
-	sb.WriteString(fmt.Sprintf("<b>%s</b>\n", html.EscapeString(result.BreakingNews.Headline)))
-	sb.WriteString(fmt.Sprintf("<i>%s</i>\n", html.EscapeString(result.BreakingNews.Date)))
-	if result.BreakingNews.Text != "" {
-		sb.WriteString(fmt.Sprintf("%s\n", html.EscapeString(strings.TrimSpace(result.BreakingNews.Text))))
+	sb.WriteString(fmt.Sprintf("<b>%s</b>\n", html.EscapeString(breakingNews.Headline)))
+	sb.WriteString(fmt.Sprintf("<i>%s</i>\n", html.EscapeString(strings.Replace(breakingNews.Date, "Stand: ", "", 1))))
+	if breakingNews.Text != "" {
+		sb.WriteString(fmt.Sprintf("%s\n", html.EscapeString(strings.TrimSpace(breakingNews.Text))))
 	}
 
-	textLink := fmt.Sprintf("<a href=\"%s\">Eilmeldung aufrufen</a>", result.BreakingNews.Url)
+	url := breakingNews.Url
+	if !strings.HasPrefix(url, "http") {
+		url = "https://www.tagesschau.de/" + url
+	}
+
+	textLink := fmt.Sprintf("<a href=\"%s\">Eilmeldung aufrufen</a>", url)
 	replyMarkup := h.Bot.NewMarkup()
-	btn := replyMarkup.URL("Eilmeldung aufrufen", result.BreakingNews.Url)
+	btn := replyMarkup.URL("Eilmeldung aufrufen", url)
 	replyMarkup.Inline(replyMarkup.Row(btn))
 
 	groupText := "#EIL: " + sb.String()
@@ -122,7 +129,7 @@ func (h Handler) check() error {
 		}
 	}
 
-	err = h.DB.System.SetLastEntry(result.BreakingNews.Id)
+	err = h.DB.System.SetLastEntry(breakingNews.Id)
 	if err != nil {
 		return fmt.Errorf("failed writing last entry to DB: %w", err)
 	}
