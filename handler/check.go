@@ -97,7 +97,7 @@ func (h Handler) check() error {
 
 	url := breakingNews.Url
 	if !strings.HasPrefix(url, "http") {
-		url = "https://www.tagesschau.de/" + url
+		url = "https://www.tagesschau.de/" + strings.TrimPrefix(url, "/")
 	}
 
 	textLink := fmt.Sprintf("<a href=\"%s\">Eilmeldung aufrufen</a>", url)
