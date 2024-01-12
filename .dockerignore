@@ -1,0 +1,6 @@
+*
+!handler/
+!storage/
+!go.mod
+!go.sum
+!main.go
