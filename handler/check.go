@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gopkg.in/telebot.v3"
 	"html"
 	"io"
 	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"gopkg.in/telebot.v3"
 )
 
 const ApiUrl string = "https://www.tagesschau.de/json/headerapp"
@@ -89,7 +90,7 @@ func (h Handler) check() error {
 
 	sb := strings.Builder{}
 
-	sb.WriteString(fmt.Sprintf("<b>%s</b>\n", html.EscapeString(breakingNews.Headline)))
+	sb.WriteString(fmt.Sprintf("<b>%s</b>\n", html.EscapeString(strings.TrimSpace(breakingNews.Headline))))
 	sb.WriteString(fmt.Sprintf("<i>%s</i>\n", html.EscapeString(strings.Replace(breakingNews.Date, "Stand: ", "", 1))))
 	if breakingNews.Text != "" {
 		sb.WriteString(fmt.Sprintf("%s\n", html.EscapeString(strings.TrimSpace(breakingNews.Text))))
