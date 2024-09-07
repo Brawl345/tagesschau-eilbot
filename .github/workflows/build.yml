@@ -4,7 +4,6 @@ on:
   - pull_request
 
 env:
-  GOVER: ^1.18
   NAME: tagesschau-eilbot
 
 jobs:
@@ -27,20 +26,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GOVER }}
+          go-version-file: 'go.mod'
 
       - name: Build
         env:
@@ -53,7 +42,7 @@ jobs:
         run: for x in dist/$NAME-windows-*; do mv $x $x.exe; done
 
       - name: Upload binary
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{env.NAME}}-${{ matrix.GOOS }}-${{ matrix.GOARCH }}-${{github.sha}}
           path: dist/*
