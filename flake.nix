@@ -39,6 +39,9 @@
               pkgs.go
               pkgs.golangci-lint
             ];
+            shellHook = ''
+              export DEBUG=1
+            '';
           };
         });
 
