@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"cmp"
 	"embed"
 	"fmt"
 	"os"
@@ -26,16 +27,29 @@ func Connect() (*DB, error) {
 	port := strings.TrimSpace(os.Getenv("MYSQL_PORT"))
 	user := strings.TrimSpace(os.Getenv("MYSQL_USER"))
 	password := strings.TrimSpace(os.Getenv("MYSQL_PASSWORD"))
-	db := strings.TrimSpace(os.Getenv("MYSQL_DB"))
+	dbname := strings.TrimSpace(os.Getenv("MYSQL_DB"))
+	tls := cmp.Or(strings.TrimSpace(os.Getenv("MYSQL_TLS")), "false")
+	socket := strings.TrimSpace(os.Getenv("MYSQL_SOCKET"))
 
-	connectionString := fmt.Sprintf(
-		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-		user,
-		password,
-		host,
-		port,
-		db,
-	)
+	var connectionString string
+	if socket != "" {
+		connectionString = fmt.Sprintf(
+			"%s@unix(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+			user,
+			socket,
+			dbname,
+		)
+	} else {
+		connectionString = fmt.Sprintf(
+			"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&tls=%s",
+			user,
+			password,
+			host,
+			port,
+			dbname,
+			tls,
+		)
+	}
 
 	conn, err := sqlx.Connect("mysql", connectionString)
 	if err != nil {
