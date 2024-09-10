@@ -7,7 +7,7 @@
 
 let
   cfg = config.services.tagesschau-eilbot;
-  defaultUser = "tagesschau-eilbot";
+  defaultUser = "tagesschaueilbot";
   inherit (lib)
     mkEnableOption
     mkMerge
@@ -29,7 +29,7 @@ in
     user = mkOption {
       type = types.str;
       default = defaultUser;
-      description = "User under which RSS Bot runs.";
+      description = "User under which Telegram Breaking News Bot runs.";
     };
 
     adminId = mkOption {
@@ -127,7 +127,7 @@ in
     };
 
     systemd.services.tagesschau-eilbot = {
-      description = "RSS Bot for Telegram";
+      description = "Tagesschau Breaking News Bot for Telegram";
       after = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
 
