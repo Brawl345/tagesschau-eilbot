@@ -128,7 +128,8 @@ in
 
     systemd.services.tagesschau-eilbot = {
       description = "Tagesschau Breaking News Bot for Telegram";
-      after = [ "network.target" ];
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
 
       script = ''
