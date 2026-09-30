@@ -1,32 +1,31 @@
 package handler
 
 import (
-	"gopkg.in/telebot.v3"
+	"context"
 	"log"
 	"strings"
+
+	"gopkg.in/telebot.v3"
 )
 
-func (h Handler) OnStop(c telebot.Context) error {
-	if c.Message().FromGroup() {
-		if !isGroupAdmin(h.Bot, c.Chat().ID, c.Message().Sender.ID) {
-			return c.Send("❌ Nur Gruppenadministratoren können Eilmeldungen deabonnieren.", defaultSendOptions)
-		}
+func (h *Handler) OnStop(c telebot.Context) error {
+	if !isAuthorized(c) {
+		return c.Send("❌ Nur Gruppenadministratoren können Eilmeldungen deabonnieren.", defaultSendOptions)
 	}
 
 	chatId := c.Chat().ID
 	sb := strings.Builder{}
 
-	exists, _ := h.DB.Subscribers.Exists(chatId)
-	if !exists {
-		sb.WriteString("<b>❌ Eilmeldungen wurden noch nicht abonniert.</b>\n")
-		sb.WriteString("Nutze /start zum Abonnieren.")
-		return c.Send(sb.String(), defaultSendOptions)
-	}
-
-	err := h.DB.Subscribers.Delete(chatId)
+	deleted, err := h.DB.Subscribers.Delete(context.Background(), chatId)
 	if err != nil {
 		log.Println(err)
 		return c.Send("❌ Beim Deabonnieren ist ein Fehler aufgetreten.", defaultSendOptions)
+	}
+
+	if !deleted {
+		sb.WriteString("<b>❌ Eilmeldungen wurden noch nicht abonniert.</b>\n")
+		sb.WriteString("Nutze /start zum Abonnieren.")
+		return c.Send(sb.String(), defaultSendOptions)
 	}
 
 	log.Println("Removed subscription:", chatId)

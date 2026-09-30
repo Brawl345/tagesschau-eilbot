@@ -3,12 +3,12 @@ package storage
 import (
 	"cmp"
 	"embed"
-	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	migrate "github.com/rubenv/sql-migrate"
 )
@@ -19,51 +19,45 @@ var embeddedMigrations embed.FS
 type DB struct {
 	*sqlx.DB
 	Subscribers SubscribersStorage
-	System      SystemStorage
+	SentNews    SentNewsStorage
+}
+
+func env(key string) string {
+	return strings.TrimSpace(os.Getenv(key))
 }
 
 func Connect() (*DB, error) {
-	host := strings.TrimSpace(os.Getenv("MYSQL_HOST"))
-	port := strings.TrimSpace(os.Getenv("MYSQL_PORT"))
-	user := strings.TrimSpace(os.Getenv("MYSQL_USER"))
-	password := strings.TrimSpace(os.Getenv("MYSQL_PASSWORD"))
-	dbname := strings.TrimSpace(os.Getenv("MYSQL_DB"))
-	tls := cmp.Or(strings.TrimSpace(os.Getenv("MYSQL_TLS")), "false")
-	socket := strings.TrimSpace(os.Getenv("MYSQL_SOCKET"))
+	cfg := mysql.NewConfig()
+	cfg.User = env("MYSQL_USER")
+	cfg.Passwd = env("MYSQL_PASSWORD")
+	cfg.DBName = env("MYSQL_DB")
+	cfg.ParseTime = true
+	cfg.Loc = time.Local
+	cfg.Params = map[string]string{"charset": "utf8mb4"}
 
-	var connectionString string
-	if socket != "" {
-		connectionString = fmt.Sprintf(
-			"%s@unix(%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			user,
-			socket,
-			dbname,
-		)
+	if socket := env("MYSQL_SOCKET"); socket != "" {
+		cfg.Net = "unix"
+		cfg.Addr = socket
 	} else {
-		connectionString = fmt.Sprintf(
-			"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&tls=%s",
-			user,
-			password,
-			host,
-			port,
-			dbname,
-			tls,
-		)
+		cfg.Net = "tcp"
+		cfg.Addr = net.JoinHostPort(cmp.Or(env("MYSQL_HOST"), "127.0.0.1"), cmp.Or(env("MYSQL_PORT"), "3306"))
+		cfg.TLSConfig = cmp.Or(env("MYSQL_TLS"), "false")
 	}
 
-	conn, err := sqlx.Connect("mysql", connectionString)
+	conn, err := sqlx.Connect("mysql", cfg.FormatDSN())
 	if err != nil {
 		return nil, err
 	}
 
-	conn.SetMaxIdleConns(100)
-	conn.SetMaxOpenConns(100)
-	conn.SetConnMaxIdleTime(3 * time.Minute)
+	conn.SetMaxOpenConns(10)
+	conn.SetMaxIdleConns(5)
+	conn.SetConnMaxLifetime(3 * time.Minute)
+	conn.SetConnMaxIdleTime(time.Minute)
 
 	return &DB{
 		DB:          conn,
 		Subscribers: &Subscribers{DB: conn},
-		System:      &System{DB: conn},
+		SentNews:    &SentNews{DB: conn},
 	}, nil
 }
 

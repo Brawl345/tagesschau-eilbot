@@ -1,16 +1,16 @@
 package storage
 
 import (
-	"errors"
+	"context"
+
 	"github.com/jmoiron/sqlx"
 )
 
 type (
 	SubscribersStorage interface {
-		Create(chatId int64) error
-		Delete(chatId int64) error
-		Exists(chatId int64) (bool, error)
-		GetAll() ([]int64, error)
+		Create(ctx context.Context, chatId int64) (bool, error)
+		Delete(ctx context.Context, chatId int64) (bool, error)
+		GetAll(ctx context.Context) ([]int64, error)
 	}
 
 	Subscribers struct {
@@ -18,39 +18,27 @@ type (
 	}
 )
 
-func (db *Subscribers) Create(chatId int64) error {
-	const query = `INSERT INTO subscribers (id) VALUES (?)`
-	_, err := db.Exec(query, chatId)
-	return err
+// Create reports whether the subscriber was newly added.
+func (db *Subscribers) Create(ctx context.Context, chatId int64) (bool, error) {
+	return db.affected(ctx, "INSERT IGNORE INTO `subscribers` (`id`) VALUES (?)", chatId)
 }
 
-func (db *Subscribers) Delete(chatId int64) error {
-	const query = `DELETE FROM subscribers WHERE id = ?`
-	res, err := db.Exec(query, chatId)
-	if err != nil {
-		return err
-	}
-
-	rows, err := res.RowsAffected()
-	if rows == 0 {
-		return errors.New("subscriber not found")
-	}
-	return err
+// Delete reports whether a subscriber was removed.
+func (db *Subscribers) Delete(ctx context.Context, chatId int64) (bool, error) {
+	return db.affected(ctx, "DELETE FROM `subscribers` WHERE `id` = ?", chatId)
 }
 
-func (db *Subscribers) Exists(chatId int64) (bool, error) {
-	const query = `SELECT 1 FROM subscribers
-WHERE subscribers.id = ?`
-
-	var exists bool
-	err := db.Get(&exists, query, chatId)
-	return exists, err
-}
-
-func (db *Subscribers) GetAll() ([]int64, error) {
-	const query = `SELECT id FROM subscribers`
-
+func (db *Subscribers) GetAll(ctx context.Context) ([]int64, error) {
 	var ids []int64
-	err := db.Select(&ids, query)
+	err := db.SelectContext(ctx, &ids, "SELECT `id` FROM `subscribers`")
 	return ids, err
+}
+
+func (db *Subscribers) affected(ctx context.Context, query string, args ...any) (bool, error) {
+	res, err := db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return false, err
+	}
+	rows, err := res.RowsAffected()
+	return rows > 0, err
 }

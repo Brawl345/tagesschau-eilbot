@@ -1,173 +1,202 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"html"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"gopkg.in/telebot.v3"
 )
 
-const ApiUrl string = "https://www.tagesschau.de/json/headerapp"
+const (
+	apiUrl        = "https://www.tagesschau.de/json/headerapp"
+	baseUrl       = "https://www.tagesschau.de/"
+	maxBodySize   = 5 << 20
+	firstCheck    = 5 * time.Second
+	checkInterval = time.Minute
+)
 
-type TagesschauResponse struct {
-	BreakingNews []struct {
-		Id       string `json:"id"`
-		Headline string `json:"headline"`
-		Text     string `json:"text"`
-		Url      string `json:"url"`
-		Date     string `json:"date"`
-	} `json:"breakingNews"`
+type breakingNews struct {
+	Id       string `json:"id"`
+	Headline string `json:"headline"`
+	Text     string `json:"text"`
+	Url      string `json:"url"`
+	Date     string `json:"date"`
 }
 
-func (h Handler) OnTimer() {
-	if isDebugMode() {
-		log.Println("Checking for breaking news")
-	}
+type tagesschauResponse struct {
+	BreakingNews []breakingNews `json:"breakingNews"`
+}
 
-	err := h.check()
+// Poll checks for breaking news until ctx is cancelled. A running broadcast
+// always completes so that no subscriber misses an alert that is already
+// marked as sent.
+func (h *Handler) Poll(ctx context.Context) {
+	timer := time.NewTimer(firstCheck)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+
+		if isDebugMode() {
+			log.Println("Checking for breaking news")
+		}
+		if err := h.check(ctx); err != nil {
+			log.Println(err)
+		}
+		timer.Reset(checkInterval)
+	}
+}
+
+func (h *Handler) fetch(ctx context.Context) ([]breakingNews, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiUrl, nil)
 	if err != nil {
-		log.Println(err)
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("got HTTP error %s", resp.Status)
 	}
 
-	time.AfterFunc(1*time.Minute, h.OnTimer)
+	var result tagesschauResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxBodySize)).Decode(&result); err != nil {
+		return nil, fmt.Errorf("can not unmarshal JSON: %w", err)
+	}
+
+	news := make([]breakingNews, 0, len(result.BreakingNews))
+	for _, n := range result.BreakingNews {
+		if n.Id == "" {
+			continue
+		}
+		if _, err := articleUrl(n.Url); err != nil {
+			log.Printf("Skipping breaking news %s: %s", n.Id, err)
+			continue
+		}
+		news = append(news, n)
+	}
+	return news, nil
 }
 
-func (h Handler) check() error {
-	resp, err := http.Get(ApiUrl)
+func (h *Handler) check(ctx context.Context) error {
+	news, err := h.fetch(ctx)
 	if err != nil {
 		return err
 	}
 
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("got HTTP error %s", resp.Status)
-	}
-
-	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
-
-	if err != nil {
-		return err
-	}
-
-	var result TagesschauResponse
-	if err := json.Unmarshal(body, &result); err != nil {
-		return fmt.Errorf("can not unmarshal JSON: %w", err)
-	}
-
-	if len(result.BreakingNews) == 0 || result.BreakingNews[0].Id == "" {
+	if len(news) == 0 {
 		if isDebugMode() {
 			log.Println("No breaking news found")
 		}
 		return nil
 	}
 
-	breakingNews := result.BreakingNews[0]
-
-	if breakingNews.Url == "" {
-		return errors.New("invalid breaking news")
-	}
-
-	lastEntry, err := h.DB.System.GetLastEntry()
+	empty, err := h.DB.SentNews.IsEmpty(ctx)
 	if err != nil {
-		return fmt.Errorf("error while getting last entry: %w", err)
+		return fmt.Errorf("error while reading sent news: %w", err)
 	}
-
-	if lastEntry == breakingNews.Id {
-		if isDebugMode() {
-			log.Println("Already notified of this breaking news")
+	if empty {
+		for _, n := range news {
+			if _, err := h.DB.SentNews.MarkSent(ctx, n.Id); err != nil {
+				return fmt.Errorf("error while marking news as sent: %w", err)
+			}
 		}
+		log.Printf("Initialized with %d current breaking news", len(news))
 		return nil
 	}
 
-	log.Println("New breaking news found")
-
-	sb := strings.Builder{}
-
-	sb.WriteString(fmt.Sprintf("<b>%s</b>\n", html.EscapeString(strings.TrimSpace(breakingNews.Headline))))
-	sb.WriteString(fmt.Sprintf("<i>%s</i>\n", html.EscapeString(strings.Replace(breakingNews.Date, "Stand: ", "", 1))))
-	if breakingNews.Text != "" {
-		sb.WriteString(fmt.Sprintf("%s\n", html.EscapeString(strings.TrimSpace(breakingNews.Text))))
-	}
-
-	url := breakingNews.Url
-	if !strings.HasPrefix(url, "http") {
-		url = "https://www.tagesschau.de/" + strings.TrimPrefix(url, "/")
-	}
-
-	textLink := fmt.Sprintf("<a href=\"%s\">Eilmeldung aufrufen</a>", url)
-	replyMarkup := h.Bot.NewMarkup()
-	btn := replyMarkup.URL("Eilmeldung aufrufen", url)
-	replyMarkup.Inline(replyMarkup.Row(btn))
-
-	groupText := "#EIL: " + sb.String()
-	privateText := sb.String() + textLink
-
-	subscribers, err := h.DB.Subscribers.GetAll()
-	if err != nil {
-		return fmt.Errorf("error while getting subscribers: %w", err)
-	}
-
-	for _, subscriber := range subscribers {
-		if subscriber < 0 { // Group
-			err = h.sendText(subscriber, groupText, &telebot.SendOptions{
-				DisableWebPagePreview: true,
-				ParseMode:             telebot.ModeHTML,
-				ReplyMarkup:           replyMarkup,
-			})
-		} else {
-			err = h.sendText(subscriber, privateText, defaultSendOptions)
-		}
-
+	// The API lists the newest alert first.
+	for _, n := range slices.Backward(news) {
+		isNew, err := h.DB.SentNews.MarkSent(ctx, n.Id)
 		if err != nil {
-			log.Printf("Error for subscriber %d: %s", subscriber, err)
+			return fmt.Errorf("error while marking news as sent: %w", err)
 		}
-	}
-
-	err = h.DB.System.SetLastEntry(breakingNews.Id)
-	if err != nil {
-		return fmt.Errorf("failed writing last entry to DB: %w", err)
-	}
-
-	return nil
-}
-
-func (h Handler) sendText(subscriber int64, text string, sendOptions *telebot.SendOptions) error {
-	_, err := h.Bot.Send(telebot.ChatID(subscriber), text, sendOptions)
-
-	var telebotError *telebot.Error
-	var floodError *telebot.FloodError
-
-	if err != nil {
-		if errors.Is(err, telebot.ErrChatNotFound) {
-			log.Printf("Chat %d not found, will be deleted", subscriber)
-			h.DB.Subscribers.Delete(subscriber)
-		} else if errors.Is(err, telebot.ErrGroupMigrated) {
-			migratedTo := err.(*telebot.GroupError).MigratedTo
-			log.Printf("Chat %d migrated to new group %d", subscriber, migratedTo)
-			h.DB.Subscribers.Delete(subscriber)
-			h.DB.Subscribers.Create(migratedTo)
-			return h.sendText(migratedTo, text, sendOptions)
-		} else if errors.As(err, &floodError) {
-			retryAfter := floodError.RetryAfter
-			log.Printf("%d: Flood error, retrying after: %d seconds", subscriber, retryAfter)
-			time.Sleep(time.Duration(retryAfter) * time.Second)
-			h.sendText(subscriber, text, sendOptions)
-		} else if errors.As(err, &telebotError) {
-			if telebotError.Code == 403 {
-				log.Printf("%d: %s, will be removed", subscriber, telebotError.Description)
-				h.DB.Subscribers.Delete(subscriber)
+		if !isNew {
+			if isDebugMode() {
+				log.Printf("Already notified of breaking news %s", n.Id)
 			}
-		} else {
+			continue
+		}
+
+		log.Printf("New breaking news found: %s", n.Id)
+		if err := h.broadcast(context.WithoutCancel(ctx), n); err != nil {
 			return err
 		}
 	}
 
+	if err := h.DB.SentNews.Prune(ctx); err != nil {
+		return fmt.Errorf("error while pruning sent news: %w", err)
+	}
+	return nil
+}
+
+func articleUrl(raw string) (string, error) {
+	base, _ := url.Parse(baseUrl)
+	ref, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", err
+	}
+	u := base.ResolveReference(ref)
+	if (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || raw == "" {
+		return "", fmt.Errorf("invalid URL %q", raw)
+	}
+	return u.String(), nil
+}
+
+func (h *Handler) broadcast(ctx context.Context, n breakingNews) error {
+	link, err := articleUrl(n.Url)
+	if err != nil {
+		return err
+	}
+
+	sb := strings.Builder{}
+	fmt.Fprintf(&sb, "<b>%s</b>\n", html.EscapeString(strings.TrimSpace(n.Headline)))
+	fmt.Fprintf(&sb, "<i>%s</i>\n", html.EscapeString(strings.TrimSpace(strings.Replace(n.Date, "Stand: ", "", 1))))
+	if text := strings.TrimSpace(n.Text); text != "" {
+		fmt.Fprintf(&sb, "%s\n", html.EscapeString(text))
+	}
+
+	groupText := "#EIL: " + sb.String()
+	privateText := sb.String() + fmt.Sprintf("<a href=\"%s\">Eilmeldung aufrufen</a>", html.EscapeString(link))
+
+	replyMarkup := h.Bot.NewMarkup()
+	replyMarkup.Inline(replyMarkup.Row(replyMarkup.URL("Eilmeldung aufrufen", link)))
+	groupOptions := &telebot.SendOptions{
+		DisableWebPagePreview: true,
+		ParseMode:             telebot.ModeHTML,
+		ReplyMarkup:           replyMarkup,
+	}
+
+	subscribers, err := h.DB.Subscribers.GetAll(ctx)
+	if err != nil {
+		return fmt.Errorf("error while getting subscribers: %w", err)
+	}
+
+	h.sendAll(ctx, subscribers, func(chatId int64) (string, *telebot.SendOptions) {
+		if chatId < 0 {
+			return groupText, groupOptions
+		}
+		return privateText, defaultSendOptions
+	})
+
+	log.Printf("Sent breaking news %s to %d subscriber(s)", n.Id, len(subscribers))
 	return nil
 }

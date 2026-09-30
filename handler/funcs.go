@@ -3,6 +3,8 @@ package handler
 import (
 	"log"
 	"os"
+	"strconv"
+	"sync"
 
 	"gopkg.in/telebot.v3"
 )
@@ -13,18 +15,31 @@ var defaultSendOptions = &telebot.SendOptions{
 	ParseMode:             telebot.ModeHTML,
 }
 
-func isDebugMode() bool {
-	_, exists := os.LookupEnv("DEBUG")
-	return exists
-}
+var isDebugMode = sync.OnceValue(func() bool {
+	debug, _ := strconv.ParseBool(os.Getenv("DEBUG"))
+	return debug
+})
 
-func isGroupAdmin(bot *telebot.Bot, chatId, userId int64) bool {
-	data, err := bot.ChatMemberOf(telebot.ChatID(chatId), telebot.ChatID(userId))
+// isAuthorized allows private chats, anonymous admins posting as the group
+// itself and group members with the creator or administrator role.
+func isAuthorized(c telebot.Context) bool {
+	msg := c.Message()
+	if msg == nil || msg.Private() {
+		return msg != nil
+	}
 
-	if err != nil {
-		log.Println("is_group_admin() errored:", err)
+	if msg.SenderChat != nil && msg.SenderChat.ID == c.Chat().ID {
+		return true
+	}
+	if msg.Sender == nil {
 		return false
 	}
 
-	return data.Role == telebot.Creator || data.Role == telebot.Administrator
+	member, err := c.Bot().ChatMemberOf(c.Chat(), msg.Sender)
+	if err != nil {
+		log.Println("isAuthorized() errored:", err)
+		return false
+	}
+
+	return member.Role == telebot.Creator || member.Role == telebot.Administrator
 }

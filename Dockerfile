@@ -1,11 +1,11 @@
-FROM golang:1.22 AS build-stage
+FROM golang:1.26-trixie AS build-stage
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . ./
-RUN CGO_ENABLED=0 GOOS=linux go build -o /tagesschau-eilbot
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -buildid=" -o /tagesschau-eilbot
 
-FROM gcr.io/distroless/base-debian12 AS release-stage
+FROM gcr.io/distroless/static-debian13:nonroot AS release-stage
 WORKDIR /app
 COPY --from=build-stage /tagesschau-eilbot /app/tagesschau-eilbot
 USER nonroot:nonroot

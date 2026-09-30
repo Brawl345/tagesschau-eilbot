@@ -21,6 +21,14 @@ let
     ;
 in
 {
+  imports = [
+    (lib.mkRemovedOptionModule [
+      "services"
+      "tagesschau-eilbot"
+      "adminId"
+    ] "The bot does not use an admin ID.")
+  ];
+
   options.services.tagesschau-eilbot = {
     enable = mkEnableOption "Tagesschau Breaking News bot for Telegram";
 
@@ -32,9 +40,10 @@ in
       description = "User under which Telegram Breaking News Bot runs.";
     };
 
-    adminId = mkOption {
-      type = types.int;
-      description = "Admin ID";
+    group = mkOption {
+      type = types.str;
+      default = defaultUser;
+      description = "Group under which Telegram Breaking News Bot runs.";
     };
 
     botTokenFile = mkOption {
@@ -128,8 +137,9 @@ in
 
     systemd.services.tagesschau-eilbot = {
       description = "Tagesschau Breaking News Bot for Telegram";
-      after = [ "network-online.target" "mysql.service" ];
-      requires = [ "network-online.target" "mysql.service" ];
+      after = [ "network-online.target" ] ++ optional cfg.database.createLocally "mysql.service";
+      wants = [ "network-online.target" ];
+      requires = optional cfg.database.createLocally "mysql.service";
       wantedBy = [ "multi-user.target" ];
 
       script = ''
@@ -144,16 +154,52 @@ in
       serviceConfig = {
         LoadCredential = [
           "BOT_TOKEN:${cfg.botTokenFile}"
-        ] ++ optional (cfg.database.passwordFile != null) "MYSQL_PASSWORD:${cfg.database.passwordFile}";
+        ]
+        ++ optional (cfg.database.passwordFile != null) "MYSQL_PASSWORD:${cfg.database.passwordFile}";
 
         Restart = "always";
+        RestartSec = 5;
         User = cfg.user;
-        Group = defaultUser;
+        Group = cfg.group;
+        TimeoutStopSec = 120;
+
+        CapabilityBoundingSet = "";
+        LockPersonality = true;
+        MemoryDenyWriteExecute = true;
+        NoNewPrivileges = true;
+        PrivateDevices = true;
+        PrivateTmp = true;
+        PrivateUsers = true;
+        ProcSubset = "pid";
+        ProtectClock = true;
+        ProtectControlGroups = true;
+        ProtectHome = true;
+        ProtectHostname = true;
+        ProtectKernelLogs = true;
+        ProtectKernelModules = true;
+        ProtectKernelTunables = true;
+        ProtectProc = "invisible";
+        ProtectSystem = "strict";
+        RemoveIPC = true;
+        RestrictAddressFamilies = [
+          "AF_INET"
+          "AF_INET6"
+          "AF_UNIX"
+        ];
+        RestrictNamespaces = true;
+        RestrictRealtime = true;
+        RestrictSUIDSGID = true;
+        SystemCallArchitectures = "native";
+        SystemCallFilter = [
+          "@system-service"
+          "~@privileged"
+          "~@resources"
+        ];
+        UMask = "0077";
       };
 
       environment = mkMerge [
         {
-          ADMIN_ID = toString cfg.adminId;
           MYSQL_HOST = cfg.database.host;
           MYSQL_PORT = toString cfg.database.port;
           MYSQL_USER = cfg.database.user;
@@ -166,14 +212,16 @@ in
       ];
     };
 
-    users = optionalAttrs (cfg.user == defaultUser) {
-      users.${defaultUser} = {
+    users.users = optionalAttrs (cfg.user == defaultUser) {
+      ${defaultUser} = {
         isSystemUser = true;
-        group = defaultUser;
+        group = cfg.group;
         description = "Tagesschau Breaking News Bot user";
       };
+    };
 
-      groups.${defaultUser} = { };
+    users.groups = optionalAttrs (cfg.group == defaultUser) {
+      ${defaultUser} = { };
     };
 
   };
